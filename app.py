@@ -767,6 +767,15 @@ if st.session_state.formatted_text:
                 st.subheader("🎧 生成された音声")
                 st.audio(st.session_state.generated_audio, format="audio/wav")
 
+                # 音声ダウンロードボタン
+                st.download_button(
+                    label="AUDIO DOWNLOAD",
+                    data=st.session_state.generated_audio,
+                    file_name=f"{st.session_state.get('filename', 'output')}.wav",
+                    mime="audio/wav",
+                    key="download_audio_inline"
+                )
+
                 # 動画生成セクション
                 st.markdown("---")
                 st.subheader("🎥 動画生成")
@@ -806,6 +815,15 @@ if st.session_state.formatted_text:
                 if st.session_state.generated_video:
                     st.subheader("📺 生成された動画")
                     st.video(st.session_state.generated_video)
+
+                    # 動画ダウンロードボタン
+                    st.download_button(
+                        label="VIDEO DOWNLOAD",
+                        data=st.session_state.generated_video,
+                        file_name=f"{st.session_state.get('filename', 'output')}.mp4",
+                        mime="video/mp4",
+                        key="download_video_inline"
+                    )
 
     else:
         st.error("⚠️ VOICEVOXに接続できません")
