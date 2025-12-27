@@ -63,14 +63,25 @@ class VideoGenerator:
 
             for line in lines:
                 if line.strip():
-                    txt_clip = TextClip(
-                        line.strip(),
-                        fontsize=font_size,
-                        color=text_color,
-                        font='Yu-Gothic-Bold',  # 日本語フォント
-                        method='caption',
-                        size=(self.width - 100, None)
-                    ).set_position(('center', y_position)).set_duration(duration)
+                    try:
+                        # Macで利用可能なフォントを試行
+                        txt_clip = TextClip(
+                            line.strip(),
+                            fontsize=font_size,
+                            color=text_color,
+                            font='Hiragino-Sans-GB',  # Macの日本語フォント
+                            method='caption',
+                            size=(self.width - 100, None)
+                        ).set_position(('center', y_position)).set_duration(duration)
+                    except:
+                        # フォントが見つからない場合はデフォルトフォント
+                        txt_clip = TextClip(
+                            line.strip(),
+                            fontsize=font_size,
+                            color=text_color,
+                            method='caption',
+                            size=(self.width - 100, None)
+                        ).set_position(('center', y_position)).set_duration(duration)
 
                     text_clips.append(txt_clip)
                     y_position += font_size + 10
@@ -155,14 +166,25 @@ class VideoGenerator:
             full_text = '\n'.join([line.strip() for line in lines if line.strip()])
 
             # テキストクリップを作成（大きめに）
-            txt_clip = TextClip(
-                full_text,
-                fontsize=font_size,
-                color=text_color,
-                font='Yu-Gothic-Bold',
-                method='caption',
-                size=(self.width - 100, None)
-            ).set_duration(duration)
+            try:
+                # Macで利用可能なフォントを試行
+                txt_clip = TextClip(
+                    full_text,
+                    fontsize=font_size,
+                    color=text_color,
+                    font='Hiragino-Sans-GB',  # Macの日本語フォント
+                    method='caption',
+                    size=(self.width - 100, None)
+                ).set_duration(duration)
+            except:
+                # フォントが見つからない場合はデフォルトフォント
+                txt_clip = TextClip(
+                    full_text,
+                    fontsize=font_size,
+                    color=text_color,
+                    method='caption',
+                    size=(self.width - 100, None)
+                ).set_duration(duration)
 
             # スクロール効果を追加
             txt_height = txt_clip.h
