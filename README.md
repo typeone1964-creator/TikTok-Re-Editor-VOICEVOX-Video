@@ -176,7 +176,8 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
    streamlit run app.py
    ```
 3. **自動的にブラウザが開きます**
-   - 開かない場合は、ブラウザで `http://localhost:8501` にアクセス
+   - ターミナルに表示されるURL（`http://localhost:8501` または `http://localhost:8502`）を確認
+   - 開かない場合は、表示されたURLをブラウザに入力
 
 **Macの場合：**
 1. **「ターミナル」**で、アプリのフォルダに移動（ステップ4と同じ）
@@ -185,10 +186,11 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
    streamlit run app.py
    ```
 3. **自動的にブラウザが開きます**
-   - 開かない場合は、ブラウザで `http://localhost:8501` にアクセス
+   - ターミナルに表示されるURL（`http://localhost:8501` または `http://localhost:8502`）を確認
+   - 開かない場合は、表示されたURLをブラウザに入力
 
 **「localhost」って何？**
-「あなたのPC」という意味です。あなたのPC上でアプリが動いています。
+「あなたのPC」という意味です。あなたのPC上でアプリが動いています。ポート番号（8501や8502）は、複数のアプリを同時に動かすための番号です。
 
 ---
 
@@ -346,7 +348,8 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
 
 **A**: 「あなたのPC」という意味です。
 
-- `http://localhost:8501` = あなたのPC上で動いているアプリにアクセスするアドレス
+- `http://localhost:8501` または `http://localhost:8502` = あなたのPC上で動いているアプリのアドレス
+- ポート番号（8501、8502など）は、アプリ起動時にターミナルに表示されます
 - 他の人のPCでは見えません（自分のPCだけで使います）
 
 ---
