@@ -23,6 +23,7 @@ class GeminiFormatter:
 6. 意味のまとまりや自然な区切りで改行してください
 7. 読みやすい位置で改行してください（途中で単語が切れないように）
 8. 要約や言い換えは絶対に禁止です
+9. **重要**: 空行は絶対に入れないでください。全て連続した行にしてください
 
 【良い例】
 職場の嫌な奴は、← 読点で終わる
@@ -47,6 +48,7 @@ class GeminiFormatter:
 【出力】
 整形後のテキストのみを出力してください。説明や追加コメントは不要です。
 全ての行が句点（。）または読点（、）で終わることを確認してください。
+空行は絶対に入れないでください。
 """
 
         try:
@@ -57,6 +59,10 @@ class GeminiFormatter:
             # レスポンスの内容を確認
             if hasattr(response, 'text'):
                 result = response.text.strip()
+                # 半角数字を全角数字に変換
+                result = self._convert_numbers_to_fullwidth(result)
+                # クリップ分割用の空行を自動挿入（5〜10行ごと）
+                result = self._ensure_empty_lines(result)
                 print(f"整形結果: {len(result)}文字")
                 return result
             else:
@@ -183,3 +189,58 @@ class GeminiFormatter:
             import traceback
             traceback.print_exc()
             return None
+
+    def _convert_numbers_to_fullwidth(self, text: str) -> str:
+        """
+        半角数字を全角数字に変換
+        """
+        # 半角数字から全角数字へのマッピング
+        halfwidth_to_fullwidth = str.maketrans('0123456789', '０１２３４５６７８９')
+        return text.translate(halfwidth_to_fullwidth)
+
+    def _ensure_empty_lines(self, text: str, target_lines_per_segment: int = 7) -> str:
+        """
+        テキストに空行が不足している場合、自動的に5〜10行ごとに空行を挿入
+
+        Args:
+            text: 整形済みテキスト
+            target_lines_per_segment: クリップあたりの目標行数（デフォルト7行）
+
+        Returns:
+            空行を挿入したテキスト
+        """
+        # 既に空行がある場合はそのまま返す
+        if '\n\n' in text:
+            print("空行が既に存在するため、自動挿入をスキップします")
+            return text
+
+        lines = text.split('\n')
+        total_lines = len(lines)
+
+        # 行数が少ない場合（10行以下）は空行不要
+        if total_lines <= 10:
+            print(f"総行数が{total_lines}行のため、空行挿入をスキップします")
+            return text
+
+        # 句点（。）で終わる行を探して、そこに空行を挿入
+        result_lines = []
+        line_count = 0
+
+        for i, line in enumerate(lines):
+            result_lines.append(line)
+            line_count += 1
+
+            # 5行以上、かつ句点で終わる行の後に空行を挿入
+            if line_count >= 5 and line.rstrip().endswith('。'):
+                # 最後の行でなければ空行を追加
+                if i < len(lines) - 1:
+                    # 次のクリップが3行以上ある場合のみ空行を挿入
+                    remaining_lines = len(lines) - i - 1
+                    if remaining_lines >= 3:
+                        result_lines.append('')  # 空行を挿入
+                        line_count = 0
+                        print(f"空行を{i+1}行目の後に挿入しました")
+
+        result = '\n'.join(result_lines)
+        print(f"自動空行挿入完了: {total_lines}行 → {len(result_lines)}行（空行含む）")
+        return result

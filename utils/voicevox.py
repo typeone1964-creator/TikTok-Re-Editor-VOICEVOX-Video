@@ -77,3 +77,53 @@ class VoiceVoxAPI:
         """キャラクター試聴用のサンプル音声を生成"""
         sample_text = "こんにちは、VOICEVOXです。よろしくお願いします。"
         return self.generate_voice(sample_text, speaker_id, speed=1.0)
+
+    def get_timing_info(self, text: str, speaker_id: int, speed: float = 1.2) -> Optional[List[Dict]]:
+        """テキストの各セグメント（句読点区切り）のタイミング情報を取得"""
+        try:
+            # 音声クエリを生成
+            audio_query = self.generate_audio_query(text, speaker_id)
+            if not audio_query:
+                return None
+
+            # 話速を設定
+            audio_query["speedScale"] = speed
+
+            # accent_phrases から各フレーズの長さを計算
+            accent_phrases = audio_query.get("accent_phrases", [])
+            timing_info = []
+            current_time = 0.0
+
+            for phrase in accent_phrases:
+                # フレーズの総時間を計算（各モーラの長さを合計）
+                # vowel_lengthはそのままの値を使用（VOICEVOXが返す値を信頼）
+                phrase_duration = 0.0
+                for mora in phrase.get("moras", []):
+                    phrase_duration += mora.get("vowel_length", 0.0)
+
+                # ポーズの長さを追加
+                pause_mora = phrase.get("pause_mora")
+                if pause_mora:
+                    phrase_duration += pause_mora.get("vowel_length", 0.0)
+
+                # フレーズのテキストを取得
+                phrase_text = ""
+                for mora in phrase.get("moras", []):
+                    phrase_text += mora.get("text", "")
+
+                timing_info.append({
+                    "text": phrase_text,
+                    "start": current_time,
+                    "duration": phrase_duration
+                })
+
+                current_time += phrase_duration
+
+            # デバッグ情報を出力
+            print(f"[VOICEVOX] Speed: {speed}, Total timing duration: {current_time:.2f}秒")
+
+            return timing_info
+
+        except Exception as e:
+            print(f"タイミング情報取得エラー: {e}")
+            return None

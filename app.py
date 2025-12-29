@@ -1,11 +1,14 @@
 import streamlit as st
 import os
 import tempfile
+import zipfile
+import io
 from dotenv import load_dotenv
 from utils.transcription import GladiaAPI
 from utils.text_formatter import GeminiFormatter
 from utils.voicevox import VoiceVoxAPI
 from utils.video_generator import VideoGenerator
+from utils.text_segmenter import TextSegmenter
 
 # 環境変数を読み込み
 load_dotenv()
@@ -41,6 +44,16 @@ st.markdown("""
     h2, h3 {
         color: #ffffff !important;
         text-shadow: 0 0 10px rgba(0, 242, 234, 0.5);
+    }
+
+    /* 全てのテキスト要素を白色に */
+    p, span, div, label, caption, .stMarkdown, .stText {
+        color: #ffffff !important;
+    }
+
+    /* キャプションも白色に */
+    .stCaptionContainer, [data-testid="stCaptionContainer"] {
+        color: #ffffff !important;
     }
 
     /* 全てのボタンを左寄せ・同じ大きさに統一（BROWSE FILES除く） */
@@ -166,6 +179,29 @@ st.markdown("""
         border: 2px solid rgba(0, 242, 234, 0.5) !important;
         border-radius: 10px !important;
         box-shadow: 0 0 15px rgba(0, 242, 234, 0.3) !important;
+        color: #ffffff !important;
+    }
+
+    /* エキスパンダー（展開メニュー） */
+    .streamlit-expanderHeader {
+        background: rgba(0, 242, 234, 0.1) !important;
+        border: 1px solid rgba(0, 242, 234, 0.3) !important;
+        border-radius: 8px !important;
+        color: #ffffff !important;
+        font-size: 13px !important;
+        padding: 8px 12px !important;
+    }
+
+    .streamlit-expanderHeader:hover {
+        background: rgba(0, 242, 234, 0.2) !important;
+        border-color: rgba(0, 242, 234, 0.5) !important;
+    }
+
+    .streamlit-expanderContent {
+        background: rgba(10, 10, 10, 0.8) !important;
+        border: 1px solid rgba(0, 242, 234, 0.2) !important;
+        border-radius: 0 0 8px 8px !important;
+        padding: 12px !important;
         color: #ffffff !important;
     }
 
@@ -435,6 +471,8 @@ if 'generated_sns_content' not in st.session_state:
     st.session_state.generated_sns_content = None
 if 'generated_video' not in st.session_state:
     st.session_state.generated_video = None
+if 'combined_video' not in st.session_state:
+    st.session_state.combined_video = None
 
 # タイトル
 st.title("🎬 TikTok Re-Editor Video")
@@ -510,6 +548,7 @@ gladia = GladiaAPI(gladia_api_key) if gladia_api_key else None
 gemini = GeminiFormatter(gemini_api_key) if gemini_api_key else None
 voicevox = VoiceVoxAPI(voicevox_url)
 video_gen = VideoGenerator()
+text_segmenter = TextSegmenter(min_chars=10, max_chars=150)
 
 # セクション1: 入力ソース選択
 st.header("📥 1. 入力ソース選択")
@@ -645,24 +684,31 @@ with tab2:
                     st.error(f"❌ テキスト読み込みエラー: {str(e)}")
 
 # セクション2: 整形済みテキスト表示
-if st.session_state.formatted_text:
-    st.markdown('<div id="formatted-text-section"></div>', unsafe_allow_html=True)
-    st.header("📝 2. 整形済みテキスト（編集可能）")
+st.markdown('<div id="formatted-text-section"></div>', unsafe_allow_html=True)
+st.header("📝 2. 整形済みテキスト + クリップ分割（編集可能）")
 
+if st.session_state.formatted_text:
     # テキストエリアの初期値を設定
     if "text_editor" not in st.session_state:
         st.session_state.text_editor = st.session_state.formatted_text
 
     # 編集可能なテキストエリア
-    st.text_area(
-        "整形されたテキスト",
-        height=300,
-        key="text_editor"
-    )
+    st.info("💡 **自動処理**: 14文字/行に整形 + 5〜10行ごとに空行を自動挿入してクリップ分割します。必要に応じて手動調整も可能です。")
 
-    # セクション3: VOICEVOX設定（音声生成）
-    st.markdown('<div id="voice-synthesis-section"></div>', unsafe_allow_html=True)
-    st.header("🎙️ 3. 音声合成")
+    st.text_area(
+        "整形 + クリップ分割済みテキスト（編集可能）",
+        height=300,
+        key="text_editor",
+        help="空行で区切られた部分が1つの動画クリップになります。空行の位置を自由に調整できます。"
+    )
+else:
+    st.info("💡 セクション1で入力ソースを選択し、テキストを生成してください。")
+
+# セクション3: VOICEVOX設定（音声生成）
+st.markdown('<div id="voice-synthesis-section"></div>', unsafe_allow_html=True)
+st.header("🎙️ 3. 音声合成")
+
+if st.session_state.formatted_text:
 
     # スピーカー一覧を取得
     speakers = voicevox.get_speakers()
@@ -699,9 +745,9 @@ if st.session_state.formatted_text:
 
             with col2:
                 selected_style_name = st.selectbox(
-                    "🎨 スタイル選択",
-                    style_names,
-                    index=0
+                "🎨 スタイル選択",
+                style_names,
+                index=0
                 )
 
             # スピーカーIDを取得
@@ -737,28 +783,36 @@ if st.session_state.formatted_text:
             # 音声生成ボタン
             if st.button("GENERATE AUDIO", key="generate_btn"):
                 with st.spinner("音声を生成中... (時間がかかる場合があります)"):
-                    # 【重要】整形済みテキストのみを使用（タイトル・紹介文・ハッシュタグは含まない）
-                    voice_text = st.session_state.text_editor
+                    # ユーザーが入力したテキスト（改行あり）を保存
+                    original_text = st.session_state.text_editor
+
+                    # 音声生成用：改行を削除して1行にする（VOICEVOXの精度向上）
+                    voice_text_no_breaks = original_text.replace('\n', '')
+
+                    st.info(f"💡 音声生成：改行を削除した1行テキストを使用（{len(voice_text_no_breaks)}文字）")
+
+                    # 音声生成（改行なしテキスト）
                     audio_data = voicevox.generate_voice(
-                        voice_text,
+                        voice_text_no_breaks,
+                        speaker_id,
+                        speed
+                    )
+
+                    # タイミング情報を取得（改行なしテキスト）
+                    timing_info = voicevox.get_timing_info(
+                        voice_text_no_breaks,
                         speaker_id,
                         speed
                     )
 
                     if audio_data:
                         st.session_state.generated_audio = audio_data
+                        st.session_state.timing_info = timing_info
+                        st.session_state.voice_text = original_text  # 動画生成用：元のテキスト（改行あり）を保存
+                        st.session_state.voice_text_no_breaks = voice_text_no_breaks  # デバッグ用
+                        st.session_state.speaker_id = speaker_id
+                        st.session_state.speed = speed
                         st.success("✅ 音声を生成しました！")
-                        # SNSコンテンツ生成セクションに自動スクロール（次のステップを促す）
-                        st.components.v1.html("""
-                        <script>
-                            setTimeout(function() {
-                                const section = window.parent.document.getElementById('sns-content-section');
-                                if (section) {
-                                    section.scrollIntoView({behavior: 'smooth', block: 'start'});
-                                }
-                            }, 100);
-                        </script>
-                        """, height=0)
                     else:
                         st.error("音声生成に失敗しました")
 
@@ -769,104 +823,277 @@ if st.session_state.formatted_text:
 
                 # 音声ダウンロードボタン
                 st.download_button(
-                    label="AUDIO DOWNLOAD",
-                    data=st.session_state.generated_audio,
-                    file_name=f"{st.session_state.get('filename', 'output')}.wav",
-                    mime="audio/wav",
-                    key="download_audio_inline"
+                label="AUDIO DOWNLOAD",
+                data=st.session_state.generated_audio,
+                file_name=f"{st.session_state.get('filename', 'output')}.wav",
+                mime="audio/wav",
+                key="download_audio_inline"
                 )
 
                 # 動画生成セクション
                 st.markdown("---")
-                st.subheader("🎥 動画生成")
-                st.info("💡 生成した音声とテキストを使って、TikTok形式（9:16）の動画を作成できます")
+                # 音声生成後にここにスクロール
+                st.markdown('<div id="video-generation"></div>', unsafe_allow_html=True)
+else:
+    st.info("💡 セクション2で整形済みテキストを作成してください。")
 
-                # 動画スタイル選択
-                video_style = st.radio(
-                    "動画スタイル",
-                    options=["固定テキスト", "スクロールテキスト"],
-                    index=0,
-                    help="固定テキスト：テキストが中央に固定表示 / スクロールテキスト：テキストが上から下へスクロール"
-                )
+# セクション4: 動画生成
+st.header("🎥 4. 動画生成")
 
-                # 動画生成ボタン
-                if st.button("GENERATE VIDEO", key="generate_video_btn"):
-                    with st.spinner("動画を生成中... (時間がかかる場合があります)"):
-                        voice_text = st.session_state.text_editor
+# 音声が生成されている場合のみ表示
+if st.session_state.generated_audio:
+    st.info("💡 **手動調整**: セクション2で空行の位置を調整できます。空行で区切られた部分が1つの動画クリップになります。")
 
-                        if video_style == "固定テキスト":
-                            video_data = video_gen.create_video(
-                                voice_text,
-                                st.session_state.generated_audio
-                            )
-                        else:
-                            video_data = video_gen.create_scrolling_video(
-                                voice_text,
-                                st.session_state.generated_audio
-                            )
+    # 音声生成後に自動スクロール
+    st.components.v1.html("""
+    <script>
+    setTimeout(function() {
+        const element = window.parent.document.getElementById('video-generation');
+        if (element) {
+            const yOffset = -150;
+            const y = element.getBoundingClientRect().top + window.parent.pageYOffset + yOffset;
+            window.parent.scrollTo({top: y, behavior: 'smooth'});
+        }
+    }, 500);
+    </script>
+    """, height=0)
 
-                        if video_data:
-                            st.session_state.generated_video = video_data
-                            st.success("✅ 動画を生成しました！")
-                        else:
-                            st.error("動画生成に失敗しました")
+    # テキストを句読点で分割
+    print(f"[DEBUG] 動画生成時のtext_editor長: {len(st.session_state.text_editor)}文字")
+    print(f"[DEBUG] 動画生成時の空行確認: {'\\n\\n' in st.session_state.text_editor}")
+    print(f"[DEBUG] 動画生成時のテキスト（最初の200文字）: {repr(st.session_state.text_editor[:200])}")
+    segments = text_segmenter.split_by_punctuation(st.session_state.text_editor)
+    print(f"[DEBUG] 分割後のクリップ数: {len(segments)}")
+    segment_info = text_segmenter.get_segment_info(segments)
+    estimated_durations = text_segmenter.estimate_duration(segments, chars_per_second=10.0 / st.session_state.speed if st.session_state.speed else 10.0)
 
-                # 生成された動画のプレビュー
-                if st.session_state.generated_video:
-                    st.subheader("📺 生成された動画")
-                    st.video(st.session_state.generated_video)
+    # クリップ情報を表示
+    st.markdown("##### 📊 クリップ情報")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("クリップ数", segment_info['count'])
+    with col2:
+        st.metric("総文字数", segment_info['total_chars'])
+    with col3:
+        st.metric("平均文字数", f"{segment_info['avg_chars']:.1f}")
+    with col4:
+        total_est_duration = sum(estimated_durations)
+        st.metric("推定時間", f"{total_est_duration:.1f}秒")
 
-                    # 動画ダウンロードボタン
-                    st.download_button(
-                        label="VIDEO DOWNLOAD",
-                        data=st.session_state.generated_video,
-                        file_name=f"{st.session_state.get('filename', 'output')}.mp4",
-                        mime="video/mp4",
-                        key="download_video_inline"
+    # クリップ動画生成ボタン
+    if st.button("GENERATE CLIP VIDEOS", key="generate_segment_videos_btn"):
+        with st.spinner(f"{len(segments)}個のクリップ動画を生成中... (時間がかかります)"):
+            try:
+                # セッションステートに結果を保存するリストを初期化
+                if 'segment_videos' not in st.session_state:
+                    st.session_state.segment_videos = []
+                if 'segment_audios' not in st.session_state:
+                    st.session_state.segment_audios = []
+                if 'segment_texts' not in st.session_state:
+                    st.session_state.segment_texts = []
+
+                st.session_state.segment_videos = []
+                st.session_state.segment_audios = []
+                st.session_state.segment_texts = []
+
+                # プログレスバーを表示
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                # 各クリップの音声と動画を生成
+                for i, segment_text in enumerate(segments):
+                    status_text.text(f"クリップ {i+1}/{len(segments)} を処理中...")
+
+                    # 音声生成
+                    audio_data = voicevox.generate_voice(
+                        segment_text,
+                        st.session_state.speaker_id,
+                        st.session_state.speed
                     )
 
-    else:
-        st.error("⚠️ VOICEVOXに接続できません")
-        st.warning("""
-        **VOICEVOXを使用するには：**
-        1. あなたのPC（ローカル環境）でVOICEVOXアプリを起動してください
-        2. VOICEVOXが完全に起動するまで待ってください
-        3. このページをリロードしてください
+                    if audio_data:
+                        # 動画生成
+                        video_data = video_gen.create_segment_video(
+                            segment_text,
+                            audio_data,
+                            segment_index=i
+                        )
 
-        📥 VOICEVOXダウンロード: https://voicevox.hiroshiba.jp/
-        """)
+                        if video_data:
+                            st.session_state.segment_videos.append(video_data)
+                            st.session_state.segment_audios.append(audio_data)
+                            st.session_state.segment_texts.append(segment_text)
+                        else:
+                            st.error(f"クリップ{i+1}の動画生成に失敗しました")
+                    else:
+                        st.error(f"クリップ{i+1}の音声生成に失敗しました")
 
-    # セクション4: タイトル・紹介文・ハッシュタグ生成
-    st.markdown('<div id="sns-content-section"></div>', unsafe_allow_html=True)
-    st.header("📋 4. タイトル・紹介文・ハッシュタグ生成")
-    st.info("💡 音声生成後、SNS投稿用のタイトル・紹介文・ハッシュタグを作成できます")
+                    # プログレスバーを更新
+                    progress_bar.progress((i + 1) / len(segments))
 
-    # 生成ボタン
-    if st.button("GENERATE SNS CONTENT", key="generate_sns_content_btn"):
-        # Gemini APIキーチェック
-        if not gemini_api_key:
-            st.error("⚠️ サイドバーでGemini APIキーを入力してください")
-        elif not st.session_state.text_editor:
-            st.error("⚠️ テキストが見つかりません")
-        else:
-            with st.spinner("タイトル・紹介文・ハッシュタグを生成中..."):
-                sns_content = gemini.generate_metadata(st.session_state.text_editor)
-                if sns_content:
-                    st.session_state.generated_sns_content = sns_content
-                    st.success("✅ タイトル・紹介文・ハッシュタグを生成しました！")
-                    # ダウンロードセクションに自動スクロール
-                    st.components.v1.html("""
-                    <script>
-                        setTimeout(function() {
-                            const section = window.parent.document.getElementById('download-section');
-                            if (section) {
-                                section.scrollIntoView({behavior: 'smooth', block: 'start'});
-                            }
-                        }, 100);
-                    </script>
-                    """, height=0)
+                progress_bar.empty()
+                status_text.empty()
+
+                if len(st.session_state.segment_videos) == len(segments):
+                    st.success(f"✅ {len(segments)}個のクリップ動画を生成しました！")
+
+                    # 自動的に結合動画を生成
+                    status_text.text("結合動画を生成中...")
+                    try:
+                        from moviepy.editor import VideoFileClip, concatenate_videoclips
+
+                        # 一時ファイルにクリップを保存
+                        temp_files = []
+                        clips = []
+
+                        for i, video_data in enumerate(st.session_state.segment_videos):
+                            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                            temp_file.write(video_data)
+                            temp_file.close()
+                            temp_files.append(temp_file.name)
+
+                            clip = VideoFileClip(temp_file.name)
+                            clips.append(clip)
+
+                        # 全クリップを結合
+                        final_clip = concatenate_videoclips(clips)
+
+                        # 一時ファイルに書き出し
+                        combined_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                        combined_path = combined_temp_file.name
+                        combined_temp_file.close()
+
+                        final_clip.write_videofile(
+                            combined_path,
+                            fps=30,
+                            codec='libx264',
+                            audio_codec='aac',
+                            logger=None
+                        )
+
+                        # 結合動画を読み込み
+                        with open(combined_path, 'rb') as f:
+                            combined_data = f.read()
+
+                        st.session_state.combined_video = combined_data
+
+                        # クリーンアップ
+                        for clip in clips:
+                            clip.close()
+                        final_clip.close()
+
+                        for temp_file in temp_files:
+                            os.unlink(temp_file)
+                        os.unlink(combined_path)
+
+                        status_text.empty()
+                        st.success(f"✅ 結合動画も生成しました！")
+
+                    except Exception as combine_error:
+                        status_text.empty()
+                        st.warning(f"⚠️ 結合動画の生成に失敗しました: {str(combine_error)}")
                 else:
-                    st.error("生成に失敗しました")
+                    st.warning(f"⚠️ {len(st.session_state.segment_videos)}/{len(segments)} 個のクリップ動画を生成しました")
+
+            except Exception as e:
+                st.error(f"クリップ動画生成エラー: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+
+    # 生成されたクリップ動画のプレビューとダウンロードセクション
+    if 'segment_videos' in st.session_state and st.session_state.segment_videos:
+        st.markdown("---")
+
+        # 結合動画プレビュー（iPhone風フレーム）
+        if 'combined_video' in st.session_state and st.session_state.combined_video:
+            st.markdown(f"##### 📺 結合動画プレビュー（全{len(st.session_state.segment_videos)}クリップ）")
+
+            # iPhone風フレームで中央に表示
+            import base64
+            video_base64 = base64.b64encode(st.session_state.combined_video).decode()
+
+            st.markdown(f"""
+            <div style="display: flex; justify-content: center; margin: 20px 0;">
+                <div style="background: white; padding: 15px; border-radius: 30px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); max-width: 360px;">
+                    <video controls style="width: 100%; height: 640px; object-fit: contain; border-radius: 20px; background: black;">
+                        <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+                    </video>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("##### 📦 ダウンロード")
+
+        # ZIP一括ダウンロード（動画のみ）
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for i, video_data in enumerate(st.session_state.segment_videos):
+                # 動画を追加（MP4形式）
+                zip_file.writestr(f"clip_{i+1:02d}.mp4", video_data)
+
+        zip_buffer.seek(0)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.download_button(
+                label="📦 ZIP DOWNLOAD",
+                data=zip_buffer.getvalue(),
+                file_name=f"{st.session_state.get('filename', 'output')}_clips.zip",
+                mime="application/zip",
+                key="download_all_segments_zip"
+            )
+            st.info(f"💡 {len(st.session_state.segment_videos)}個の個別クリップ")
+
+        with col2:
+            # 結合動画ダウンロードボタン（自動生成済み）
+            if 'combined_video' in st.session_state and st.session_state.combined_video:
+                st.download_button(
+                    label="🎬 DOWNLOAD COMBINED",
+                    data=st.session_state.combined_video,
+                    file_name=f"{st.session_state.get('filename', 'output')}_combined.mp4",
+                    mime="video/mp4",
+                    key="download_combined_video"
+                )
+                st.success("💡 全クリップを結合した1つの動画")
+            else:
+                st.write("")
+
+else:
+    st.info("💡 セクション3で音声を生成してください。")
+
+# セクション5: タイトル・紹介文・ハッシュタグ生成
+st.markdown('<div id="sns-content-section"></div>', unsafe_allow_html=True)
+st.header("📋 5. タイトル・紹介文・ハッシュタグ生成")
+st.info("💡 音声生成後、SNS投稿用のタイトル・紹介文・ハッシュタグを作成できます")
+
+# 生成ボタン
+if st.button("GENERATE SNS CONTENT", key="generate_sns_content_btn"):
+    # Gemini APIキーチェック
+    if not gemini_api_key:
+        st.error("⚠️ サイドバーでGemini APIキーを入力してください")
+    elif not st.session_state.text_editor:
+        st.error("⚠️ テキストが見つかりません")
+    else:
+        with st.spinner("タイトル・紹介文・ハッシュタグを生成中..."):
+            sns_content = gemini.generate_metadata(st.session_state.text_editor)
+            if sns_content:
+                st.session_state.generated_sns_content = sns_content
+                st.success("✅ タイトル・紹介文・ハッシュタグを生成しました！")
+                # ダウンロードセクションに自動スクロール
+                st.components.v1.html("""
+                <script>
+                    setTimeout(function() {
+                        const section = window.parent.document.getElementById('download-section');
+                        if (section) {
+                            section.scrollIntoView({behavior: 'smooth', block: 'start'});
+                        }
+                    }, 100);
+                </script>
+                """, height=0)
+            else:
+                st.error("生成に失敗しました")
 
     # 生成されたコンテンツを表示・編集可能に
     if st.session_state.generated_sns_content:
@@ -882,99 +1109,101 @@ if st.session_state.formatted_text:
             key="sns_content_editor"
         )
 
-    # セクション5: ダウンロード
-    st.markdown('<div id="download-section"></div>', unsafe_allow_html=True)
-    st.header("💾 5. ダウンロード")
+# セクション6: ダウンロード
+st.markdown('<div id="download-section"></div>', unsafe_allow_html=True)
+st.header("💾 6. ダウンロード")
 
-    # ファイル名の確認・編集
-    if "filename" not in st.session_state or not st.session_state.filename:
-        st.session_state.filename = "output"
+# ファイル名の確認・編集
+if "filename" not in st.session_state or not st.session_state.filename:
+    st.session_state.filename = "output"
 
-    final_filename = st.text_input(
-        "ファイル名（編集可能）",
-        value=st.session_state.filename,
-        key="filename_input"
-    )
+final_filename = st.text_input(
+    "ファイル名（編集可能）",
+    value=st.session_state.filename,
+    key="filename_input"
+)
 
-    # 3つのダウンロードボタンを横並びに配置
-    col1, col2, col3 = st.columns(3)
+# 2つのダウンロードボタンを横並びに配置
+col1, col2 = st.columns(2)
 
-    with col1:
-        # テキストダウンロード用の整形処理
-        def format_text_for_download(text: str, target_length: int = 14) -> str:
-            """
-            テキストをダウンロード用に整形
-            - 句読点（。、）を削除
-            - 14文字程度で適切に改行（句読点の位置を基準に）
-            """
-            # 既存の改行で分割
-            lines = text.split('\n')
+with col1:
+    # テキストダウンロード用の整形処理
+    def format_text_for_download(text: str, target_length: int = 14) -> str:
+        """
+        テキストをダウンロード用に整形
+        - 句読点（。、）を削除
+        - 14文字程度で適切に改行（句読点の位置を基準に）
+        """
+        # 既存の改行で分割
+        lines = text.split('\n')
 
-            # 新しい行のリスト
-            new_lines = []
+        # 新しい行のリスト
+        new_lines = []
 
-            for line in lines:
-                line = line.strip()
-                if not line:
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 句点・読点の位置を記録
+            # 句点（。）と読点（、）を改行候補位置としてマーク
+            chunks = []
+            current_chunk = ""
+
+            for char in line:
+                if char in ['。', '、']:
+                    # 句読点の前までをchunkに追加（句読点は含めない）
+                    if current_chunk:
+                        chunks.append(current_chunk)
+                        current_chunk = ""
+                else:
+                    current_chunk += char
+
+            # 残りがあれば追加
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # chunksを14文字程度でまとめる（できるだけ14文字に近づける）
+            current_line = ""
+            for chunk in chunks:
+                chunk = chunk.strip()
+                if not chunk:
                     continue
 
-                # 句点・読点の位置を記録
-                # 句点（。）と読点（、）を改行候補位置としてマーク
-                chunks = []
-                current_chunk = ""
+                if not current_line:
+                    # 最初のchunk
+                    current_line = chunk
+                    continue
 
-                for char in line:
-                    if char in ['。', '、']:
-                        # 句読点の前までをchunkに追加（句読点は含めない）
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = ""
-                    else:
-                        current_chunk += char
+                # 現在の行の長さと、chunkを追加した場合の長さ
+                current_len = len(current_line)
+                combined_len = len(current_line + chunk)
 
-                # 残りがあれば追加
-                if current_chunk:
-                    chunks.append(current_chunk)
+                # 14文字からの距離を計算
+                current_distance = abs(target_length - current_len)
+                combined_distance = abs(target_length - combined_len)
 
-                # chunksを14文字程度でまとめる（できるだけ14文字に近づける）
-                current_line = ""
-                for chunk in chunks:
-                    chunk = chunk.strip()
-                    if not chunk:
-                        continue
-
-                    if not current_line:
-                        # 最初のchunk
-                        current_line = chunk
-                        continue
-
-                    # 現在の行の長さと、chunkを追加した場合の長さ
-                    current_len = len(current_line)
-                    combined_len = len(current_line + chunk)
-
-                    # 14文字からの距離を計算
-                    current_distance = abs(target_length - current_len)
-                    combined_distance = abs(target_length - combined_len)
-
-                    # 18文字を超える場合は強制的に改行（上限）
-                    if combined_len > target_length + 4:
-                        new_lines.append(current_line)
-                        current_line = chunk
-                    # どちらが14文字に近いかで判断
-                    elif combined_distance <= current_distance:
-                        # 追加した方が14に近い
-                        current_line += chunk
-                    else:
-                        # 追加しない方が14に近い
-                        new_lines.append(current_line)
-                        current_line = chunk
-
-                # 残りがあれば追加
-                if current_line:
+                # 18文字を超える場合は強制的に改行（上限）
+                if combined_len > target_length + 4:
                     new_lines.append(current_line)
+                    current_line = chunk
+                # どちらが14文字に近いかで判断
+                elif combined_distance <= current_distance:
+                    # 追加した方が14に近い
+                    current_line += chunk
+                else:
+                    # 追加しない方が14に近い
+                    new_lines.append(current_line)
+                    current_line = chunk
 
-            return '\n'.join(new_lines)
+            # 残りがあれば追加
+            if current_line:
+                new_lines.append(current_line)
 
+        return '\n'.join(new_lines)
+
+    # テキストダウンロード（テキスト生成済みの場合のみ表示）
+    if st.session_state.get("text_editor"):
         # テキストダウンロード（整形済み + タイトル・紹介文・ハッシュタグ）
         # 本文は句読点削除 + 14文字改行
         formatted_main_text = format_text_for_download(st.session_state.text_editor)
@@ -991,34 +1220,23 @@ if st.session_state.formatted_text:
             mime="text/plain",
             key="download_text"
         )
+    else:
+        # テキスト未生成の場合は何も表示しない（スペースのみ）
+        st.write("")
 
-    with col2:
-        # 音声ファイルをダウンロード（音声生成済みの場合のみ表示）
-        if st.session_state.generated_audio:
-            st.download_button(
-                label="AUDIO DOWNLOAD",
-                data=st.session_state.generated_audio,
-                file_name=f"{final_filename}.wav",
-                mime="audio/wav",
-                key="download_audio"
-            )
-        else:
-            # 音声未生成の場合は何も表示しない（スペースのみ）
-            st.write("")
-
-    with col3:
-        # 動画ファイルをダウンロード（動画生成済みの場合のみ表示）
-        if st.session_state.generated_video:
-            st.download_button(
-                label="VIDEO DOWNLOAD",
-                data=st.session_state.generated_video,
-                file_name=f"{final_filename}.mp4",
-                mime="video/mp4",
-                key="download_video"
-            )
-        else:
-            # 動画未生成の場合は何も表示しない（スペースのみ）
-            st.write("")
+with col2:
+    # 動画ファイルをダウンロード（動画生成済みの場合のみ表示）
+    if st.session_state.generated_video:
+        st.download_button(
+            label="VIDEO DOWNLOAD",
+            data=st.session_state.generated_video,
+            file_name=f"{final_filename}.mp4",
+            mime="video/mp4",
+            key="download_video"
+        )
+    else:
+        # 動画未生成の場合は何も表示しない（スペースのみ）
+        st.write("")
 
 # フッター
 st.markdown("---")
