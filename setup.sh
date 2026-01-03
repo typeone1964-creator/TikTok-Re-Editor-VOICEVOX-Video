@@ -40,19 +40,29 @@ sleep 3
 # .envファイルの作成
 echo "[4/4] 設定ファイルを作成中..."
 if [ ! -f .env ]; then
-    cat > .env << EOF
-# API Keys (optional - only needed for video transcription)
-GLADIA_API_KEY=
-GEMINI_API_KEY=
+    if [ -f .env.example ]; then
+        cp .env.example .env
+        echo "✅ .envファイルを作成しました (.env.exampleから)"
+    else
+        cat > .env << EOF
+# Gladia API Key
+GLADIA_API_KEY=your_gladia_api_key_here
+
+# Gemini API Key
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# VOICEVOX API URL (default: http://localhost:50021)
+VOICEVOX_API_URL=http://localhost:50021
 EOF
-    echo "✅ .envファイルを作成しました"
+        echo "✅ .envファイルを作成しました"
+    fi
 else
     echo "✅ .envファイルは既に存在します"
 fi
 echo ""
 
-# run.shに実行権限を付与
-chmod +x run.sh 2>/dev/null
+# 実行権限を付与
+chmod +x run.sh run.command 2>/dev/null
 
 echo "================================"
 echo "✅ セットアップ完了！"
@@ -60,9 +70,12 @@ echo "================================"
 echo ""
 echo "次のステップ:"
 echo "1. VOICEVOXを起動してください"
-echo "2. run.sh をダブルクリックしてアプリを起動"
-echo "   (または、ターミナルで ./run.sh を実行)"
 echo ""
-echo "※ 動画から文字起こしをする場合は、.envファイルにAPIキーを設定してください"
+echo "2. アプリを起動（どちらか選択）:"
+echo "   【Mac】 run.command をダブルクリック（簡単！）"
+echo "   【他】  ターミナルで ./run.sh を実行"
+echo ""
+echo "※ テキストから音声・動画を作るだけなら、APIキーは不要です"
+echo "※ 動画から文字起こしをする場合のみ、.envファイルにAPIキーを設定してください"
 echo ""
 read -p "Enterキーを押して終了..."
