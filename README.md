@@ -152,7 +152,23 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
    ```
 5. たくさん文字が流れて、最後に完了メッセージが出ればOK
 
-#### Macの場合
+#### Macの場合（超簡単！）
+
+**推奨方法: ワンクリックインストール**
+
+1. **「ターミナル」**を開く（「アプリケーション」→「ユーティリティ」→「ターミナル」）
+2. 以下のコマンドを **コピペして実行**：
+   ```bash
+   cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
+   bash INSTALL_MAC.sh
+   ```
+3. 「✓ インストール完了！」と表示されればOK
+
+**💡 ヒント:**
+- フォルダがデスクトップにない場合は、パスを変更してください
+- フォルダ名が `TikTok-Re-Editor-VOICEVOX-Video` の場合は、コマンドのフォルダ名を変更してください
+
+**従来の方法（手動インストール）:**
 
 1. **「ターミナル」**を開く
 2. `cd ` と入力（スペース含む）
@@ -176,21 +192,24 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
 
 #### 2. このアプリを起動してブラウザで開く
 
-**Macの場合（2つの方法）：**
+**Macの場合：**
 
-**方法A: ダブルクリックで起動（簡単・推奨）**
-1. **`run.command`** ファイルをダブルクリック
-2. 自動的にターミナルが開き、アプリが起動します
-3. 4秒後にブラウザが自動的に開きます
-
-**方法B: ターミナルから起動**
+**推奨方法: ターミナルから起動**
 1. **「ターミナル」**アプリを開く
 2. 以下を入力してEnter：
    ```bash
-   cd ~/Downloads/TikTok-Re-Editor-VOICEVOX-Video-main
+   cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
    ./run.sh
    ```
 3. 4秒後にブラウザが自動的に開きます
+
+**💡 ヒント:**
+- フォルダがデスクトップにない場合は、パスを変更してください
+- セットアップ時と同じターミナルを使っている場合は、`./run.sh` だけでOK
+
+**注意: `.command` ファイルについて**
+- `run.command` ファイルはmacOSのセキュリティ機能でブロックされる場合があります
+- そのため、ターミナルから `./run.sh` を実行する方法を推奨します
 
 **Windowsの場合：**
 1. **`run.bat`** ファイルをダブルクリック
@@ -260,6 +279,50 @@ git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
 ---
 
 ## 🔧 トラブルシューティング
+
+### ❌ Mac: 「"run.command"は開いていません」と表示される
+
+**原因**: macOSのセキュリティ機能（Gatekeeper）によるブロック
+
+**解決方法**:
+1. ターミナルから実行してください：
+   ```bash
+   cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
+   ./run.sh
+   ```
+2. または、セキュリティ属性を削除：
+   ```bash
+   cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
+   bash INSTALL_MAC.sh
+   ```
+
+---
+
+### ❌ Mac: 「Permission denied」（アクセス権限エラー）
+
+**原因**: ファイルに実行権限がない
+
+**解決方法**:
+```bash
+cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
+chmod +x *.sh
+./run.sh
+```
+
+---
+
+### ❌ Mac: 「command not found: streamlit」
+
+**原因**: パッケージが正しくインストールされていない
+
+**解決方法**:
+```bash
+cd ~/Desktop/TikTok-Re-Editor-VOICEVOX-Video-main
+python3 -m pip install -r requirements.txt
+./run.sh
+```
+
+---
 
 ### ❌ 「VOICEVOXに接続できません」と表示される
 
