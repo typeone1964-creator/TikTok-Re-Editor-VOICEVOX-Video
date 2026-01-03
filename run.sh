@@ -24,6 +24,28 @@ echo ""
 echo "アプリを起動中..."
 echo "ブラウザが自動的に開きます"
 echo ""
+echo "※ もしブラウザが開かない場合は、以下のURLを手動で開いてください:"
+echo "   http://localhost:8501"
+echo ""
 echo "※ 終了するには、Ctrl+C を押してください"
 echo ""
-streamlit run app.py
+
+# Streamlitを起動（バックグラウンドで）
+streamlit run app.py --server.headless false &
+STREAMLIT_PID=$!
+
+# 少し待ってからブラウザを開く
+sleep 3
+if command -v open > /dev/null 2>&1; then
+    # macOSの場合
+    open http://localhost:8501
+elif command -v xdg-open > /dev/null 2>&1; then
+    # Linuxの場合
+    xdg-open http://localhost:8501
+elif command -v start > /dev/null 2>&1; then
+    # Windowsの場合（Git Bash）
+    start http://localhost:8501
+fi
+
+# Streamlitプロセスを待機
+wait $STREAMLIT_PID
