@@ -49,4 +49,4 @@ open_browser() {
 open_browser &
 
 # Streamlitを起動（フォアグラウンドで）
-streamlit run app.py
+python3 -m streamlit run app.py

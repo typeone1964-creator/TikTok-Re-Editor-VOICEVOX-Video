@@ -35,6 +35,6 @@ REM バックグラウンドでブラウザを開く（4秒後）
 start /B cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:8501"
 
 REM Streamlitを起動
-streamlit run app.py
+python -m streamlit run app.py
 
 pause
