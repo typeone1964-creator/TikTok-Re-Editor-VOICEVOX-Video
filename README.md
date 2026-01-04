@@ -8,7 +8,12 @@
 
 ## ⚡ 初めての方へ
 
-**超簡単！3ステップで始められます →** [QUICK_START.md](QUICK_START.md)
+### 📥 ダウンロード
+
+**Mac用ワンクリックインストーラー:**
+[![Download](https://img.shields.io/badge/Download-InstallApp.app.zip-blue?style=for-the-badge&logo=apple)](https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video/releases/latest/download/InstallApp.app.zip)
+
+**詳しい手順 →** [QUICK_START.md](QUICK_START.md)
 
 **Mac**: ダブルクリックだけでセットアップ＆起動！
 **Windows**: .batファイルをダブルクリックで完了！

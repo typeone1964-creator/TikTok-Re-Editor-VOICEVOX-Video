@@ -6,6 +6,17 @@
 
 ## 📥 ステップ1: ダウンロード（1分）
 
+### Mac用ワンクリックインストーラー（推奨）
+
+**こちらをクリック:**
+[![Download](https://img.shields.io/badge/Download-InstallApp.app.zip-blue?style=for-the-badge&logo=apple)](https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video/releases/latest/download/InstallApp.app.zip)
+
+ダウンロードしたら **ステップ2へ進んでください**
+
+---
+
+### または、リポジトリ全体をダウンロード
+
 1. この画面の上にある **緑色の「Code」ボタン** をクリック
 2. **「Download ZIP」** をクリック
 3. ダウンロードしたファイルを **デスクトップに解凍**
