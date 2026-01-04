@@ -49,3 +49,6 @@ output/
 
 # Backup files
 *.bak
+
+# macOS App bundles (compiled from source)
+*.app
