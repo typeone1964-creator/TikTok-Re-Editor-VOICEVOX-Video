@@ -120,7 +120,7 @@
 
 #### 方法A: ZIPでダウンロード（簡単・推奨）
 
-1. https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video にアクセス
+1. https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video にアクセス
 2. **緑色の「Code」ボタン**をクリック
 3. **「Download ZIP」**をクリック
 4. ダウンロードしたZIPファイルを解凍
@@ -131,7 +131,7 @@
 #### 方法B: Gitでダウンロード（上級者向け）
 
 ```bash
-git clone https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video.git
+git clone https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video.git
 ```
 - **フォルダ名**: `TikTok-Re-Editor-VOICEVOX-Video` ができます
 
@@ -438,7 +438,7 @@ python3 -m pip install -r requirements.txt
 
 **配布用リンク**:
 ```
-https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video
+https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video
 ```
 
 このリンクを教えて、このREADMEの手順に従ってもらってください。
@@ -481,7 +481,7 @@ PCでVOICEVOXを起動する必要があるため、スマホ・タブレット�
 **A**: 上の「トラブルシューティング」を確認してください。
 
 それでも解決しない場合は、GitHubのIssuesで質問してください：
-https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video/issues
+https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video/issues
 
 ---
 
@@ -513,8 +513,7 @@ https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video/issues
 
 ## 📚 詳しい情報
 
-- **GitHub**: https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video
-- **元のリポジトリ**: https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX
+- **GitHub**: https://github.com/typeone1964-creator/TikTok-Re-Editor-VOICEVOX-Video
 
 ---
 
@@ -527,7 +526,5 @@ https://github.com/seiichi-w77/TikTok-Re-Editor-VOICEVOX-Video/issues
 - [MoviePy](https://zulko.github.io/moviepy/) - 動画編集ライブラリ
 
 ---
-
-Made with ❤️ by seiichi-w77
 
 **PCでVOICEVOXをインストール済みなら、すぐに動画が作れます！**
